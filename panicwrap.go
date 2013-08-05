@@ -90,22 +90,23 @@ func Wrap(c *WrapConfig) (int, error) {
 			n, err := stderr_r.Read(buf)
 			if n > 0 {
 				os.Stderr.Write(buf[0:n])
-			}
 
-			if err == io.EOF {
-				break
-			}
-
-			// TODO(mitchellh): This can easily be far more efficient. One day.
-			// TODO(mitchellh): doesn't handle buffer boundaries
-			bufStr := string(buf[0:n])
-			pIndex := strings.Index(bufStr, "panic:")
-			if pIndex == -1 {
-				continue
+				// TODO(mitchellh): This can easily be far more efficient. One day.
+				// TODO(mitchellh): doesn't handle buffer boundaries
+				bufStr := string(buf[0:n])
+				println("DATA")
+				pIndex := strings.Index(bufStr, "panic:")
+				if pIndex == -1 {
+					continue
+				}
 			}
 
 			c.Handler("")
 			break
+
+			if err == io.EOF {
+				break
+			}
 		}
 
 		close(stderrDone)
