@@ -1,12 +1,13 @@
 package panicwrap
 
 import (
+	"bytes"
 	"errors"
 	"github.com/mitchellh/osext"
 	"io"
 	"os"
 	"os/exec"
-	"strings"
+	"syscall"
 )
 
 const (
@@ -84,32 +85,31 @@ func Wrap(c *WrapConfig) (int, error) {
 	// Start the goroutine that will watch stderr for any panics
 	stderrDone := make(chan struct{})
 	go func() {
+		defer close(stderrDone)
 		buf := make([]byte, 1024)
 
 		for {
 			n, err := stderr_r.Read(buf)
 			if n > 0 {
-				os.Stderr.Write(buf[0:n])
+				// TODO(mitchellh: error handling
+				panicOff, panictxt, _ := isPanic(buf[0:n], stderr_r)
+				if panicOff < 0 {
+					panicOff = n
+				}
 
-				// TODO(mitchellh): This can easily be far more efficient. One day.
-				// TODO(mitchellh): doesn't handle buffer boundaries
-				bufStr := string(buf[0:n])
-				println("DATA")
-				pIndex := strings.Index(bufStr, "panic:")
-				if pIndex == -1 {
-					continue
+				if panicOff > 0 {
+					//os.Stderr.Write(buf[0:panicOff])
+				}
+
+				if panictxt != "" {
+					c.Handler(panictxt)
 				}
 			}
-
-			c.Handler("")
-			break
 
 			if err == io.EOF {
 				break
 			}
 		}
-
-		close(stderrDone)
 	}()
 
 	// Build a subcommand to re-execute ourselves. We make sure to
@@ -122,13 +122,45 @@ func Wrap(c *WrapConfig) (int, error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = stderr_w
 	if err := cmd.Start(); err != nil {
-		return -1, err
+		return 1, err
 	}
 
-	// TODO(mitchellh): handle bad exit status
-	cmd.Wait()
+	if err := cmd.Wait(); err != nil {
+		exitErr, ok := err.(*exec.ExitError)
+		if !ok {
+			return 1, err
+		}
+
+		exitStatus := 1
+		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+			exitStatus = status.ExitStatus()
+		}
+
+		return exitStatus, nil
+	}
+
 	stderr_w.Close()
 	<-stderrDone
 
-	return 0, nil
+	return 1, nil
+}
+
+// isPanic looks at two byte slices where each byte slice is a boundary
+// of the other. It then detects whether a panic is in the byte data.
+// It returns the prefix (non-panic data before panic), the panic text if
+// any, and an error, if any.
+//
+// It is possible an error occurs while reading panic data, so the other
+// results may not be empty even if there is an error.
+func isPanic(data []byte, r io.Reader) (off int, panictxt string, err error) {
+	idx := bytes.Index(data, []byte("panic:"))
+	if idx == -1 {
+		return -1, "", nil
+	}
+
+	panicbuf := new(bytes.Buffer)
+	panicbuf.Write(data[idx:])
+	//io.Copy(panicbuf, r)
+
+	return idx, panicbuf.String(), err
 }

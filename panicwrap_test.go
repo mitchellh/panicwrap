@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 )
 
@@ -30,8 +31,6 @@ func TestHelperProcess(*testing.T) {
 		return
 	}
 
-	defer os.Exit(0)
-
 	// Find the arguments to our helper, which are the arguments past
 	// the "--" in the command line.
 	args := os.Args
@@ -54,6 +53,7 @@ func TestHelperProcess(*testing.T) {
 	case "panic":
 		exitStatus, err := BasicWrap(func(string) {
 			fmt.Fprint(os.Stdout, "wrapped")
+			os.Exit(0)
 		})
 
 		if err != nil {
@@ -62,7 +62,7 @@ func TestHelperProcess(*testing.T) {
 		}
 
 		if exitStatus < 0 {
-			panic("A PANIC")
+			panic("uh oh")
 		}
 
 		os.Exit(exitStatus)
@@ -81,7 +81,7 @@ func TestPanicWrap(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if stdout.String() != "wrapped" {
-		t.Fatal("didn't wrap")
+	if !strings.Contains(stdout.String(), "wrapped") {
+		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 }
