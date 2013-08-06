@@ -66,3 +66,31 @@ func panicHandler(output string) {
 	os.Exit(1)
 }
 ```
+
+## How Does it Work?
+
+panicwrap works by re-executing the running program (retaining arguments,
+environmental variables, etc.) and monitoring the stderr of the program.
+Since Go always outputs panics in a predictable way with a predictable
+exit code, panicwrap is able to reliably detect panics and allow the parent
+process to handle them.
+
+## WHY?! Panics should CRASH!
+
+Yes, panics _should_ crash. They are 100% always indicative of bugs.
+However, in some cases, such as user-facing programs (programs like
+[Packer](http://github.com/mitchellh/packer) or
+[Docker](http://github.com/dotcloud/docker)), it is up to the user to
+report such panics. This is unreliable, at best, and it would be better if the
+program could have a way to automatically report panics. panicwrap provides
+a way to do this.
+
+For backend applications, it is easier to detect crashes (since the application
+exits). However, it is still nice sometimes to more intelligently log
+panics in some way. For example, at [HashiCorp](http://www.hashicorp.com),
+we use panicwrap to log panics to timestamped files with some additional
+data (configuration settings at the time, environmental variables, etc.)
+
+The goal of panicwrap is _not_ to hide panics. It is instead to provide
+a clean mechanism for handling them before bubbling the up to the user
+and ultimately crashing.
