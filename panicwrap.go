@@ -162,28 +162,3 @@ func Wrap(c *WrapConfig) (int, error) {
 
 	return 0, nil
 }
-
-// isPanic looks at a byte slice and detects whether a panic is in the data.
-// It returns the offset of the panic data so that the remaining data can
-// be used. It then returns the actual panic text (including goroutine
-// traces). Finally, it returns an error, if any.
-//
-// It is possible an error occurs while reading panic data, so the other
-// results may not be empty even if there is an error.
-func isPanic(data []byte, r io.Reader) (int, string, error) {
-	idx := bytes.Index(data, []byte("panic:"))
-	if idx == -1 {
-		return -1, "", nil
-	}
-
-	// The rest of the output should be a panic, so just read it
-	// all as the panic text. Note in practice it MIGHT be possible
-	// that the panic text is intermixed with some log output. There
-	// isn't really a good way to clean this up so it is better to have
-	// too much than too little.
-	panicbuf := new(bytes.Buffer)
-	panicbuf.Write(data[idx:])
-	_, err := io.Copy(panicbuf, r)
-
-	return idx, panicbuf.String(), err
-}
