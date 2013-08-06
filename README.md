@@ -19,7 +19,7 @@ tested. panicwrap itself contains many tests.
 ## Features
 
 * **SIMPLE!**
-* Works with all Go applications
+* Works with all Go applications on all platforms Go supports
 * Custom behavior when a panic occurs
 * Stdout, stderr, stdin, exit codes, and signals continue to work as
   expected.
