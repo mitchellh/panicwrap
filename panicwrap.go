@@ -1,3 +1,8 @@
+// The panicwrap package provides functions for capturing and handling
+// panics in your application. It does this by re-executing the running
+// application and monitoring stderr for any panics. At the same time,
+// stdout/stderr/etc. are set to the same values so that data is shuttled
+// through properly, making the existence of panicwrap mostly transparent.
 package panicwrap
 
 import (
@@ -15,6 +20,7 @@ const (
 	DEFAULT_COOKIE_VAL = "7c28215aca87789f95b406b8dd91aa5198406750"
 )
 
+// HandlerFunc is the type called when a panic is detected.
 type HandlerFunc func(string)
 
 // WrapConfig is the configuration for panicwrap when wrapping an existing
@@ -82,7 +88,6 @@ func Wrap(c *WrapConfig) (int, error) {
 	// Pipe the stderr so we can read all the data as we look for panics
 	stderr_r, stderr_w := io.Pipe()
 	stderrDone := make(chan struct{})
-
 	defer func() {
 		stderr_w.Close()
 		<-stderrDone
@@ -91,12 +96,11 @@ func Wrap(c *WrapConfig) (int, error) {
 	// Start the goroutine that will watch stderr for any panics
 	go func() {
 		defer close(stderrDone)
-		buf := make([]byte, 1024)
 
+		buf := make([]byte, 1024)
 		for {
 			n, err := stderr_r.Read(buf)
 			if n > 0 {
-				// TODO(mitchellh: error handling
 				panicOff, panictxt, _ := isPanic(buf[0:n], stderr_r)
 				if panicOff < 0 {
 					panicOff = n
@@ -147,10 +151,10 @@ func Wrap(c *WrapConfig) (int, error) {
 	return 0, nil
 }
 
-// isPanic looks at two byte slices where each byte slice is a boundary
-// of the other. It then detects whether a panic is in the byte data.
-// It returns the prefix (non-panic data before panic), the panic text if
-// any, and an error, if any.
+// isPanic looks at a byte slice and detects whether a panic is in the data.
+// It returns the offset of the panic data so that the remaining data can
+// be used. It then returns the actual panic text (including goroutine
+// traces). Finally, it returns an error, if any.
 //
 // It is possible an error occurs while reading panic data, so the other
 // results may not be empty even if there is an error.
