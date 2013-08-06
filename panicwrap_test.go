@@ -50,6 +50,10 @@ func TestHelperProcess(*testing.T) {
 
 	cmd, args := args[0], args[1:]
 	switch cmd {
+	case "no-panic-output":
+		fmt.Fprint(os.Stdout, "i am output")
+		fmt.Fprint(os.Stderr, "stderr out")
+		os.Exit(0)
 	case "panic":
 		exitStatus, err := BasicWrap(func(string) {
 			fmt.Fprint(os.Stdout, "wrapped")
@@ -72,7 +76,27 @@ func TestHelperProcess(*testing.T) {
 	}
 }
 
-func TestPanicWrap(t *testing.T) {
+func TestPanicWrap_Output(t *testing.T) {
+	stderr := new(bytes.Buffer)
+	stdout := new(bytes.Buffer)
+
+	p := helperProcess("no-panic-output")
+	p.Stdout = stdout
+	p.Stderr = stderr
+	if err := p.Run(); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	if !strings.Contains(stdout.String(), "i am output") {
+		t.Fatalf("didn't forward: %#v", stdout.String())
+	}
+
+	if !strings.Contains(stderr.String(), "stderr out") {
+		t.Fatalf("didn't forward: %#v", stderr.String())
+	}
+}
+
+func TestPanicWrap_Wrap(t *testing.T) {
 	stdout := new(bytes.Buffer)
 
 	p := helperProcess("panic")
