@@ -160,5 +160,12 @@ func Wrap(c *WrapConfig) (int, error) {
 		return exitStatus, nil
 	}
 
+	if panicText.Len() > 0 {
+		// We appear to receive a panic... but the program exited normally.
+		// Just send the data down to stderr.
+		io.Copy(os.Stderr, panicText)
+		panicText.Reset()
+	}
+
 	return 0, nil
 }
