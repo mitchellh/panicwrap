@@ -98,6 +98,7 @@ func Wrap(c *WrapConfig) (int, error) {
 	}()
 
 	// Start the goroutine that will watch stderr for any panics
+	panicText := new(bytes.Buffer)
 	go func() {
 		defer close(stderrDone)
 
@@ -105,17 +106,18 @@ func Wrap(c *WrapConfig) (int, error) {
 		for {
 			n, err := stderr_r.Read(buf)
 			if n > 0 {
-				panicOff, panictxt, _ := isPanic(buf[0:n], stderr_r)
-				if panicOff < 0 {
-					panicOff = n
-				}
+				if panicText.Len() == 0 {
+					// We're not currently tracking a panic, determine if we
+					// have a panic by looking for "panic:"
+					idx := bytes.Index(buf[0:n], []byte("panic:"))
+					if idx >= 0 {
+						panicText.Write(buf[idx:n])
+						n = idx
+					}
 
-				if panicOff > 0 {
-					os.Stderr.Write(buf[0:panicOff])
-				}
-
-				if panictxt != "" {
-					c.Handler(panictxt)
+					os.Stderr.Write(buf[0:n])
+				} else {
+					panicText.Write(buf[0:n])
 				}
 			}
 
@@ -141,12 +143,18 @@ func Wrap(c *WrapConfig) (int, error) {
 	if err := cmd.Wait(); err != nil {
 		exitErr, ok := err.(*exec.ExitError)
 		if !ok {
+			// This is some other kind of subprocessing error.
 			return 1, err
 		}
 
 		exitStatus := 1
 		if status, ok := exitErr.Sys().(syscall.WaitStatus); ok {
 			exitStatus = status.ExitStatus()
+		}
+
+		// If we got a panic, then handle it
+		if panicText.Len() > 0 {
+			c.Handler(panicText.String())
 		}
 
 		return exitStatus, nil
