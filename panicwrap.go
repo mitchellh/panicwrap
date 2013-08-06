@@ -155,8 +155,13 @@ func Wrap(c *WrapConfig) (int, error) {
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, os.Interrupt)
 	go func() {
+		defer signal.Stop(sigCh)
 		for {
-			<-sigCh
+			select {
+			case <-stderrDone:
+				return
+			case <-sigCh:
+			}
 		}
 	}()
 
