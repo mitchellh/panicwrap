@@ -79,11 +79,16 @@ func Wrap(c *WrapConfig) (int, error) {
 		return -1, err
 	}
 
+	// Pipe the stderr so we can read all the data as we look for panics
 	stderr_r, stderr_w := io.Pipe()
-	defer stderr_w.Close()
+	stderrDone := make(chan struct{})
+
+	defer func() {
+		stderr_w.Close()
+		<-stderrDone
+	}()
 
 	// Start the goroutine that will watch stderr for any panics
-	stderrDone := make(chan struct{})
 	go func() {
 		defer close(stderrDone)
 		buf := make([]byte, 1024)
@@ -98,7 +103,7 @@ func Wrap(c *WrapConfig) (int, error) {
 				}
 
 				if panicOff > 0 {
-					//os.Stderr.Write(buf[0:panicOff])
+					os.Stderr.Write(buf[0:panicOff])
 				}
 
 				if panictxt != "" {
@@ -139,9 +144,6 @@ func Wrap(c *WrapConfig) (int, error) {
 		return exitStatus, nil
 	}
 
-	stderr_w.Close()
-	<-stderrDone
-
 	return 1, nil
 }
 
@@ -152,7 +154,7 @@ func Wrap(c *WrapConfig) (int, error) {
 //
 // It is possible an error occurs while reading panic data, so the other
 // results may not be empty even if there is an error.
-func isPanic(data []byte, r io.Reader) (off int, panictxt string, err error) {
+func isPanic(data []byte, r io.Reader) (int, string, error) {
 	idx := bytes.Index(data, []byte("panic:"))
 	if idx == -1 {
 		return -1, "", nil
@@ -160,7 +162,7 @@ func isPanic(data []byte, r io.Reader) (off int, panictxt string, err error) {
 
 	panicbuf := new(bytes.Buffer)
 	panicbuf.Write(data[idx:])
-	//io.Copy(panicbuf, r)
+	_, err := io.Copy(panicbuf, r)
 
 	return idx, panicbuf.String(), err
 }
