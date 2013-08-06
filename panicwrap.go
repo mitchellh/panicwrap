@@ -16,6 +16,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"syscall"
 )
 
@@ -148,6 +149,16 @@ func Wrap(c *WrapConfig) (int, error) {
 	if err := cmd.Start(); err != nil {
 		return 1, err
 	}
+
+	// Listen to signals and capture them forever. We allow the child
+	// process to handle them in some way.
+	sigCh := make(chan os.Signal)
+	signal.Notify(sigCh, os.Interrupt)
+	go func() {
+		for {
+			<-sigCh
+		}
+	}()
 
 	if err := cmd.Wait(); err != nil {
 		exitErr, ok := err.(*exec.ExitError)
