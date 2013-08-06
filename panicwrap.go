@@ -144,7 +144,7 @@ func Wrap(c *WrapConfig) (int, error) {
 		return exitStatus, nil
 	}
 
-	return 1, nil
+	return 0, nil
 }
 
 // isPanic looks at two byte slices where each byte slice is a boundary
@@ -160,6 +160,11 @@ func isPanic(data []byte, r io.Reader) (int, string, error) {
 		return -1, "", nil
 	}
 
+	// The rest of the output should be a panic, so just read it
+	// all as the panic text. Note in practice it MIGHT be possible
+	// that the panic text is intermixed with some log output. There
+	// isn't really a good way to clean this up so it is better to have
+	// too much than too little.
 	panicbuf := new(bytes.Buffer)
 	panicbuf.Write(data[idx:])
 	_, err := io.Copy(panicbuf, r)
