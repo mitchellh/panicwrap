@@ -3,6 +3,10 @@
 // application and monitoring stderr for any panics. At the same time,
 // stdout/stderr/etc. are set to the same values so that data is shuttled
 // through properly, making the existence of panicwrap mostly transparent.
+//
+// Panics are only detected when the subprocess exits with a non-zero
+// exit status, since this is the only time panics are real. Otherwise,
+// "panic-like" output is ignored.
 package panicwrap
 
 import (

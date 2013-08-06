@@ -55,8 +55,8 @@ func TestHelperProcess(*testing.T) {
 		fmt.Fprint(os.Stderr, "stderr out")
 		os.Exit(0)
 	case "panic":
-		exitStatus, err := BasicWrap(func(string) {
-			fmt.Fprint(os.Stdout, "wrapped")
+		exitStatus, err := BasicWrap(func(s string) {
+			fmt.Fprintf(os.Stdout, "wrapped: %d", len(s))
 			os.Exit(0)
 		})
 
@@ -105,7 +105,7 @@ func TestPanicWrap_Wrap(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !strings.Contains(stdout.String(), "wrapped") {
+	if !strings.Contains(stdout.String(), "wrapped: 809") {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 }
