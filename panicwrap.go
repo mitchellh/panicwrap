@@ -92,13 +92,22 @@ func Wrap(c *WrapConfig) (int, error) {
 	// Pipe the stderr so we can read all the data as we look for panics
 	stderr_r, stderr_w := io.Pipe()
 	stderrDone := make(chan struct{})
+	panicText := new(bytes.Buffer)
+
+	// On close, make sure to finish off the copying of data to stderr
 	defer func() {
 		stderr_w.Close()
 		<-stderrDone
+
+		if panicText.Len() > 0 {
+			// We appear to receive a panic... but the program exited normally.
+			// Just send the data down to stderr.
+			io.Copy(os.Stderr, panicText)
+			panicText.Reset()
+		}
 	}()
 
 	// Start the goroutine that will watch stderr for any panics
-	panicText := new(bytes.Buffer)
 	go func() {
 		defer close(stderrDone)
 
@@ -155,16 +164,10 @@ func Wrap(c *WrapConfig) (int, error) {
 		// If we got a panic, then handle it
 		if panicText.Len() > 0 {
 			c.Handler(panicText.String())
+			panicText.Reset()
 		}
 
 		return exitStatus, nil
-	}
-
-	if panicText.Len() > 0 {
-		// We appear to receive a panic... but the program exited normally.
-		// Just send the data down to stderr.
-		io.Copy(os.Stderr, panicText)
-		panicText.Reset()
 	}
 
 	return 0, nil
