@@ -112,22 +112,49 @@ func Wrap(c *WrapConfig) (int, error) {
 	go func() {
 		defer close(stderrDone)
 
+		panicHeader := []byte("panic:")
 		buf := make([]byte, 1024)
+		verified := false
 		for {
 			n, err := stderr_r.Read(buf)
 			if n > 0 {
-				if panicText.Len() == 0 {
-					// We're not currently tracking a panic, determine if we
-					// have a panic by looking for "panic:"
-					idx := bytes.Index(buf[0:n], []byte("panic:"))
-					if idx >= 0 {
-						panicText.Write(buf[idx:n])
-						n = idx
-					}
+				inspectBuf := buf[0:n]
+				for len(inspectBuf) > 0 {
+					if panicText.Len() == 0 {
+						// We're not currently tracking a panic, determine if we
+						// have a panic by looking for "panic:"
+						idx := bytes.Index(inspectBuf, panicHeader)
+						if idx >= 0 {
+							panicText.Write(inspectBuf[idx:len(inspectBuf)])
+							inspectBuf = inspectBuf[0:idx]
+						}
 
-					os.Stderr.Write(buf[0:n])
-				} else {
-					panicText.Write(buf[0:n])
+						os.Stderr.Write(inspectBuf)
+						inspectBuf = inspectBuf[0:0]
+					} else {
+						if !verified && panicText.Len() > 512 {
+							panicBytes := panicText.Bytes()
+							verified = verifyPanic(panicBytes)
+							if !verified {
+								// This is slow and rather inefficient but should also
+								// be quite rare. What is happening here is that we
+								// create a new buffer by concatenating the panic data
+								// and the data we just read, and we-process it looking
+								// for another panic.
+								newBuf := make([]byte, len(inspectBuf)+len(panicBytes))
+								copy(newBuf[0:len(panicBytes)], panicBytes)
+								copy(newBuf[len(panicBytes):], inspectBuf)
+								os.Stderr.Write(newBuf[0:len(panicHeader)])
+								newBuf = newBuf[len(panicHeader):]
+								inspectBuf = newBuf
+								panicText.Reset()
+								continue
+							}
+						}
+
+						panicText.Write(inspectBuf)
+						inspectBuf = inspectBuf[0:0]
+					}
 				}
 			}
 
@@ -187,4 +214,8 @@ func Wrap(c *WrapConfig) (int, error) {
 	}
 
 	return 0, nil
+}
+
+func verifyPanic(p []byte) bool {
+	return bytes.Index(p, []byte("goroutine ")) != -1
 }

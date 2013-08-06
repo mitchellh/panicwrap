@@ -71,6 +71,30 @@ func TestHelperProcess(*testing.T) {
 		}
 
 		os.Exit(exitStatus)
+	case "panic-long":
+		exitStatus, err := BasicWrap(func(s string) {
+			fmt.Fprintf(os.Stdout, "wrapped: %d", len(s))
+			os.Exit(0)
+		})
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
+			os.Exit(1)
+		}
+
+		if exitStatus < 0 {
+			// Make a fake panic by faking the header and adding a
+			// bunch of garbage.
+			fmt.Fprint(os.Stderr, "panic: foo\n\n")
+			for i := 0; i < 256; i++ {
+				fmt.Fprint(os.Stderr, "foobarbaz")
+			}
+
+			// Make a real panic
+			panic("I AM REAL!")
+		}
+
+		os.Exit(exitStatus)
 	case "signal":
 		exitStatus, err := BasicWrap(func(s string) {
 			fmt.Fprintf(os.Stdout, "wrapped: %d", len(s))
@@ -127,6 +151,21 @@ func TestPanicWrap_Wrap(t *testing.T) {
 	}
 
 	if !strings.Contains(stdout.String(), "wrapped: 1005") {
+		t.Fatalf("didn't wrap: %#v", stdout.String())
+	}
+}
+
+func TestPanicWrap_WrapLong(t *testing.T) {
+	stdout := new(bytes.Buffer)
+
+	p := helperProcess("panic-long")
+	p.Stdout = stdout
+	p.Stderr = new(bytes.Buffer)
+	if err := p.Run(); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	if !strings.Contains(stdout.String(), "wrapped: 1015") {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 }
