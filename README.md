@@ -18,7 +18,7 @@ tested. panicwrap itself contains many tests.
 
 ## Features
 
-* **SIMPLE!**.
+* **SIMPLE!**
 * Works with all Go applications
 * Custom behavior when a panic occurs
 * Stdout, stderr, stdin, exit codes, and signals continue to work as
@@ -26,7 +26,8 @@ tested. panicwrap itself contains many tests.
 
 ## Usage
 
-In your main application:
+Using panicwrap is simple. It behaves a lot like `fork`, if you know
+how that works. Here is a basic example:
 
 ```go
 package main
