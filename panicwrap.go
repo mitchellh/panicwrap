@@ -93,7 +93,13 @@ func Wrap(c *WrapConfig) (int, error) {
 
 	// Pipe the stderr so we can read all the data as we look for panics
 	stderr_r, stderr_w := io.Pipe()
+
+	// doneCh is closed when we're done, signaling any other goroutines
+	// to end immediately.
 	doneCh := make(chan struct{})
+
+	// panicCh is the channel on which the panic text will actually be
+	// sent.
 	panicCh := make(chan string)
 
 	// On close, make sure to finish off the copying of data to stderr
@@ -161,6 +167,9 @@ func Wrap(c *WrapConfig) (int, error) {
 	return 0, nil
 }
 
+// trackPanic monitors the given reader for a panic. If a panic is detected,
+// it is outputted on the result channel. This will close the channel once
+// it is complete.
 func trackPanic(r io.Reader, result chan<- string) {
 	defer close(result)
 
@@ -271,6 +280,8 @@ func trackPanic(r io.Reader, result chan<- string) {
 	}
 }
 
+// verifyPanic takes a slice of bytes guaranteed to be at least 512 bytes
+// and uses that to verify if it is tracking a panic or not.
 func verifyPanic(p []byte) bool {
 	return bytes.Index(p, []byte("goroutine ")) != -1
 }
