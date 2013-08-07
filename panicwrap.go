@@ -14,6 +14,7 @@ import (
 	"errors"
 	"github.com/mitchellh/osext"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -92,77 +93,18 @@ func Wrap(c *WrapConfig) (int, error) {
 
 	// Pipe the stderr so we can read all the data as we look for panics
 	stderr_r, stderr_w := io.Pipe()
-	stderrDone := make(chan struct{})
-	panicText := new(bytes.Buffer)
+	doneCh := make(chan struct{})
+	panicCh := make(chan string)
 
 	// On close, make sure to finish off the copying of data to stderr
 	defer func() {
+		defer close(doneCh)
 		stderr_w.Close()
-		<-stderrDone
-
-		if panicText.Len() > 0 {
-			// We appear to receive a panic... but the program exited normally.
-			// Just send the data down to stderr.
-			io.Copy(os.Stderr, panicText)
-			panicText.Reset()
-		}
+		<-panicCh
 	}()
 
 	// Start the goroutine that will watch stderr for any panics
-	go func() {
-		defer close(stderrDone)
-
-		panicHeader := []byte("panic:")
-		buf := make([]byte, 1024)
-		verified := false
-		for {
-			n, err := stderr_r.Read(buf)
-			if n > 0 {
-				inspectBuf := buf[0:n]
-				for len(inspectBuf) > 0 {
-					if panicText.Len() == 0 {
-						// We're not currently tracking a panic, determine if we
-						// have a panic by looking for "panic:"
-						idx := bytes.Index(inspectBuf, panicHeader)
-						if idx >= 0 {
-							panicText.Write(inspectBuf[idx:len(inspectBuf)])
-							inspectBuf = inspectBuf[0:idx]
-						}
-
-						os.Stderr.Write(inspectBuf)
-						inspectBuf = inspectBuf[0:0]
-					} else {
-						if !verified && panicText.Len() > 512 {
-							panicBytes := panicText.Bytes()
-							verified = verifyPanic(panicBytes)
-							if !verified {
-								// This is slow and rather inefficient but should also
-								// be quite rare. What is happening here is that we
-								// create a new buffer by concatenating the panic data
-								// and the data we just read, and we-process it looking
-								// for another panic.
-								newBuf := make([]byte, len(inspectBuf)+len(panicBytes))
-								copy(newBuf[0:len(panicBytes)], panicBytes)
-								copy(newBuf[len(panicBytes):], inspectBuf)
-								os.Stderr.Write(newBuf[0:len(panicHeader)])
-								newBuf = newBuf[len(panicHeader):]
-								inspectBuf = newBuf
-								panicText.Reset()
-								continue
-							}
-						}
-
-						panicText.Write(inspectBuf)
-						inspectBuf = inspectBuf[0:0]
-					}
-				}
-			}
-
-			if err == io.EOF {
-				break
-			}
-		}
-	}()
+	go trackPanic(stderr_r, panicCh)
 
 	// Build a subcommand to re-execute ourselves. We make sure to
 	// set the environmental variable to include our cookie. We also
@@ -185,7 +127,7 @@ func Wrap(c *WrapConfig) (int, error) {
 		defer signal.Stop(sigCh)
 		for {
 			select {
-			case <-stderrDone:
+			case <-doneCh:
 				return
 			case <-sigCh:
 			}
@@ -204,16 +146,129 @@ func Wrap(c *WrapConfig) (int, error) {
 			exitStatus = status.ExitStatus()
 		}
 
-		// If we got a panic, then handle it
-		if panicText.Len() > 0 {
-			c.Handler(panicText.String())
-			panicText.Reset()
+		// Close the writer end so that the tracker goroutine ends at some point
+		stderr_w.Close()
+
+		// Wait on the panic data
+		panicTxt := <-panicCh
+		if panicTxt != "" {
+			c.Handler(panicTxt)
 		}
 
 		return exitStatus, nil
 	}
 
 	return 0, nil
+}
+
+func trackPanic(r io.Reader, result chan<- string) {
+	defer close(result)
+
+	panicHeader := []byte("panic:")
+
+	// Maintain a circular buffer of the data being read.
+	buf := make([]byte, 2048)
+	panicStart := -1
+	cursor := 0
+	readCursor := 0
+
+	readPanicLen := func() int {
+		if cursor < panicStart {
+			// The cursor has wrapped around the end.
+			return (len(buf) - panicStart) + cursor
+		} else {
+			return cursor - panicStart
+		}
+	}
+
+	readPanicBytes := func() []byte {
+		panicBytes := make([]byte, readPanicLen())
+		if cursor < panicStart {
+			copy(panicBytes, buf[panicStart:len(buf)])
+			copy(panicBytes[len(buf)-panicStart:], buf[0:cursor])
+		} else {
+			copy(panicBytes, buf[panicStart:cursor])
+		}
+
+		return panicBytes
+	}
+
+	for {
+		for panicStart < 0 && readCursor != cursor {
+			// We're not currently tracking a panic, so we determine if
+			// we have a panic by looking at the last handful of bytes.
+			readCursorEnd := cursor
+			if cursor < readCursor {
+				readCursorEnd = len(buf)
+			}
+
+			inspectBuf := buf[readCursor:readCursorEnd]
+			idx := bytes.Index(inspectBuf, panicHeader)
+			if idx >= 0 {
+				panicStart = readCursor + idx
+				readCursorEnd = panicStart
+			}
+
+			// Write out the buffer we read to stderr to mirror it
+			// through. If a panic started, we only write up to the
+			// start of the panic.
+			os.Stderr.Write(buf[readCursor:readCursorEnd])
+
+			// Move the read cursor
+			readCursor = readCursorEnd
+			if readCursor > len(buf) {
+				panic("read cursor past end of buffer")
+			} else if readCursor == len(buf) {
+				readCursor = 0
+			}
+		}
+
+		if panicStart >= 0 && readPanicLen() >= 512 {
+			// We're currently tracking a panic. If we've read at least
+			// a certain number of bytes of the panic, verify if it is
+			// a real panic. Otherwise, continue to just collect bytes.
+			panicBytes := readPanicBytes()
+
+			if !verifyPanic(panicBytes) {
+				// Push the read cursor by at least one so we don't
+				// infinite loop
+				os.Stderr.Write(buf[panicStart : panicStart+1])
+				readCursor += 1
+				panicStart = -1
+				continue
+			}
+
+			panicTxt := new(bytes.Buffer)
+			panicTxt.Write(panicBytes)
+			io.Copy(panicTxt, r)
+			result <- panicTxt.String()
+			return
+		}
+
+		// Read into the next portion of our buffer
+		cursorEnd := cursor + int(math.Min(1024, float64(len(buf)-cursor)))
+		n, err := r.Read(buf[cursor:cursorEnd])
+		if n <= 0 {
+			if err == nil {
+				continue
+			} else if err == io.EOF {
+				result <- string(readPanicBytes())
+				return
+			}
+
+			// TODO(mitchellh): handle errors?
+		}
+
+		cursor += n
+		if cursor > len(buf) {
+			panic("cursor past the end of the buffer")
+		}
+
+		if cursor == len(buf) {
+			// Wrap around our buffer if we reached the end
+			cursor = 0
+		}
+	}
 }
 
 func verifyPanic(p []byte) bool {

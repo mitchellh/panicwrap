@@ -86,7 +86,7 @@ func TestHelperProcess(*testing.T) {
 			// Make a fake panic by faking the header and adding a
 			// bunch of garbage.
 			fmt.Fprint(os.Stderr, "panic: foo\n\n")
-			for i := 0; i < 256; i++ {
+			for i := 0; i < 1024; i++ {
 				fmt.Fprint(os.Stderr, "foobarbaz")
 			}
 
