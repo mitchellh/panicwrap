@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 	"os/exec"
-	"os/signal"
 	"strings"
 	"testing"
 )
@@ -97,26 +96,6 @@ func TestHelperProcess(*testing.T) {
 
 			// Make a real panic
 			panic("I AM REAL!")
-		}
-
-		os.Exit(exitStatus)
-	case "signal":
-		exitStatus, err := BasicWrap(func(s string) {
-			fmt.Fprintf(os.Stdout, "wrapped: %d", len(s))
-			os.Exit(0)
-		})
-
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
-			os.Exit(1)
-		}
-
-		if exitStatus < 0 {
-			c := make(chan os.Signal)
-			signal.Notify(c, os.Interrupt)
-			<-c
-			fmt.Fprintf(os.Stdout, "got sigint")
-			exitStatus = 0
 		}
 
 		os.Exit(exitStatus)
