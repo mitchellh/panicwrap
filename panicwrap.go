@@ -42,6 +42,12 @@ type WrapConfig struct {
 	// wrap doesn't re-wrap itself.
 	CookieKey   string
 	CookieValue string
+
+	// If true, the panic will not be mirrored to the configured writer
+	// and will instead ONLY go to the handler. This lets you effectively
+	// hide panics from the end user. This is not recommended because if
+	// your handler fails, the panic is effectively lost.
+	HidePanic bool
 }
 
 // BasicWrap calls Wrap with the given handler function, using defaults
@@ -158,6 +164,10 @@ func Wrap(c *WrapConfig) (int, error) {
 		// Wait on the panic data
 		panicTxt := <-panicCh
 		if panicTxt != "" {
+			if !c.HidePanic {
+				os.Stderr.Write([]byte(panicTxt))
+			}
+
 			c.Handler(panicTxt)
 		}
 

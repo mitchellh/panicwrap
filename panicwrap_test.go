@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"time"
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 func helperProcess(s ...string) *exec.Cmd {
@@ -49,33 +49,19 @@ func TestHelperProcess(*testing.T) {
 		os.Exit(2)
 	}
 
+	panicHandler := func(s string) {
+		fmt.Fprintf(os.Stdout, "wrapped: %d", len(s))
+		os.Exit(0)
+	}
+
 	cmd, args := args[0], args[1:]
 	switch cmd {
 	case "no-panic-output":
 		fmt.Fprint(os.Stdout, "i am output")
 		fmt.Fprint(os.Stderr, "stderr out")
 		os.Exit(0)
-	case "panic":
-		exitStatus, err := BasicWrap(func(s string) {
-			fmt.Fprintf(os.Stdout, "wrapped: %d", len(s))
-			os.Exit(0)
-		})
-
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
-			os.Exit(1)
-		}
-
-		if exitStatus < 0 {
-			panic("uh oh")
-		}
-
-		os.Exit(exitStatus)
 	case "panic-long":
-		exitStatus, err := BasicWrap(func(s string) {
-			fmt.Fprintf(os.Stdout, "wrapped: %d", len(s))
-			os.Exit(0)
-		})
+		exitStatus, err := BasicWrap(panicHandler)
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
@@ -96,6 +82,29 @@ func TestHelperProcess(*testing.T) {
 
 			// Make a real panic
 			panic("I AM REAL!")
+		}
+
+		os.Exit(exitStatus)
+	case "panic":
+		hidePanic := false
+		if args[0] == "hide" {
+			hidePanic = true
+		}
+
+		config := &WrapConfig{
+			Handler:   panicHandler,
+			HidePanic: hidePanic,
+		}
+
+		exitStatus, err := Wrap(config)
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
+			os.Exit(1)
+		}
+
+		if exitStatus < 0 {
+			panic("uh oh")
 		}
 
 		os.Exit(exitStatus)
@@ -125,17 +134,43 @@ func TestPanicWrap_Output(t *testing.T) {
 	}
 }
 
-func TestPanicWrap_Panic(t *testing.T) {
+func TestPanicWrap_panicHide(t *testing.T) {
 	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
 
-	p := helperProcess("panic")
+	p := helperProcess("panic", "hide")
 	p.Stdout = stdout
+	p.Stderr = stderr
 	if err := p.Run(); err != nil {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !strings.Contains(stdout.String(), "wrapped: 1005") {
+	if !strings.Contains(stdout.String(), "wrapped: 1006") {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
+	}
+
+	if strings.Contains(stderr.String(), "panic:") {
+		t.Fatalf("shouldn't have panic: %#v", stderr.String())
+	}
+}
+
+func TestPanicWrap_panicShow(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+
+	p := helperProcess("panic", "show")
+	p.Stdout = stdout
+	p.Stderr = stderr
+	if err := p.Run(); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	if !strings.Contains(stdout.String(), "wrapped: 1006") {
+		t.Fatalf("didn't wrap: %#v", stdout.String())
+	}
+
+	if !strings.Contains(stderr.String(), "panic:") {
+		t.Fatalf("should have panic: %#v", stderr.String())
 	}
 }
 
