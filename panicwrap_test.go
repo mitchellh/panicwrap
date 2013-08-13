@@ -60,6 +60,24 @@ func TestHelperProcess(*testing.T) {
 		fmt.Fprint(os.Stdout, "i am output")
 		fmt.Fprint(os.Stderr, "stderr out")
 		os.Exit(0)
+	case "panic-boundary":
+		exitStatus, err := BasicWrap(panicHandler)
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
+			os.Exit(1)
+		}
+
+		if exitStatus < 0 {
+			// Simulate a panic but on two boundaries...
+			fmt.Fprint(os.Stderr, "pan")
+			os.Stderr.Sync()
+			time.Sleep(100 * time.Millisecond)
+			fmt.Fprint(os.Stderr, "ic: oh crap")
+			os.Exit(2)
+		}
+
+		os.Exit(exitStatus)
 	case "panic-long":
 		exitStatus, err := BasicWrap(panicHandler)
 
@@ -174,12 +192,30 @@ func TestPanicWrap_panicShow(t *testing.T) {
 	}
 }
 
-func TestPanicWrap_PanicLong(t *testing.T) {
+func TestPanicWrap_panicLong(t *testing.T) {
 	stdout := new(bytes.Buffer)
 
 	p := helperProcess("panic-long")
 	p.Stdout = stdout
 	p.Stderr = new(bytes.Buffer)
+	if err := p.Run(); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	if !strings.Contains(stdout.String(), "wrapped: 1017") {
+		t.Fatalf("didn't wrap: %#v", stdout.String())
+	}
+}
+
+func TestPanicWrap_panicBoundary(t *testing.T) {
+	// TODO(mitchellh): panics are currently lost on boundaries
+	t.SkipNow()
+
+	stdout := new(bytes.Buffer)
+
+	p := helperProcess("panic-boundary")
+	p.Stdout = stdout
+	//p.Stderr = new(bytes.Buffer)
 	if err := p.Run(); err != nil {
 		t.Fatalf("err: %s", err)
 	}
