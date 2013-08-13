@@ -14,11 +14,11 @@ import (
 	"errors"
 	"github.com/mitchellh/osext"
 	"io"
-	"math"
 	"os"
 	"os/exec"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 const (
@@ -173,115 +173,81 @@ func Wrap(c *WrapConfig) (int, error) {
 func trackPanic(r io.Reader, result chan<- string) {
 	defer close(result)
 
+	var panicTimer <-chan time.Time
+	panicBuf := new(bytes.Buffer)
 	panicHeader := []byte("panic:")
 
-	// Maintain a circular buffer of the data being read.
-	buf := make([]byte, 2048)
-	panicStart := -1
-	cursor := 0
-	readCursor := 0
-
-	readPanicLen := func() int {
-		if cursor < panicStart {
-			// The cursor has wrapped around the end.
-			return (len(buf) - panicStart) + cursor
-		} else {
-			return cursor - panicStart
-		}
-	}
-
-	readPanicBytes := func() []byte {
-		panicBytes := make([]byte, readPanicLen())
-		if cursor < panicStart {
-			copy(panicBytes, buf[panicStart:len(buf)])
-			copy(panicBytes[len(buf)-panicStart:], buf[0:cursor])
-		} else {
-			copy(panicBytes, buf[panicStart:cursor])
-		}
-
-		return panicBytes
-	}
-
+	tempBuf := make([]byte, 2048)
 	for {
-		for panicStart < 0 && readCursor != cursor {
-			// We're not currently tracking a panic, so we determine if
-			// we have a panic by looking at the last handful of bytes.
-			readCursorEnd := cursor
-			if cursor < readCursor {
-				readCursorEnd = len(buf)
-			}
+		var buf []byte
+		var n int
 
-			inspectBuf := buf[readCursor:readCursorEnd]
-			idx := bytes.Index(inspectBuf, panicHeader)
-			if idx >= 0 {
-				panicStart = readCursor + idx
-				readCursorEnd = panicStart
-			}
+		if panicTimer == nil && panicBuf.Len() > 0 {
+			// We're not tracking a panic but the buffer length is
+			// greater than 0. We need to clear out that buffer, but
+			// look for another panic along the way.
 
-			// Write out the buffer we read to stderr to mirror it
-			// through. If a panic started, we only write up to the
-			// start of the panic.
-			os.Stderr.Write(buf[readCursor:readCursorEnd])
+			// First, remove the previous panic header so we don't loop
+			os.Stderr.Write(panicBuf.Next(len(panicHeader)))
 
-			// Move the read cursor
-			readCursor = readCursorEnd
-			if readCursor > len(buf) {
-				panic("read cursor past end of buffer")
-			} else if readCursor == len(buf) {
-				readCursor = 0
-			}
-		}
+			// Next, assume that this is our new buffer to inspect
+			n = panicBuf.Len()
+			buf = make([]byte, n)
+			copy(buf, panicBuf.Bytes())
+			panicBuf.Reset()
+		} else {
+			var err error
+			buf = tempBuf
+			n, err = r.Read(buf)
+			if n <= 0 && err == io.EOF {
+				if panicBuf.Len() > 0 {
+					// We were tracking a panic, assume it was a panic
+					// and return that as the result.
+					result <- panicBuf.String()
+				}
 
-		if panicStart >= 0 && readPanicLen() >= 512 {
-			// We're currently tracking a panic. If we've read at least
-			// a certain number of bytes of the panic, verify if it is
-			// a real panic. Otherwise, continue to just collect bytes.
-			panicBytes := readPanicBytes()
-
-			if !verifyPanic(panicBytes) {
-				// Push the read cursor by at least one so we don't
-				// infinite loop
-				os.Stderr.Write(buf[panicStart : panicStart+1])
-				readCursor += 1
-				panicStart = -1
-				continue
-			}
-
-			panicTxt := new(bytes.Buffer)
-			panicTxt.Write(panicBytes)
-			io.Copy(panicTxt, r)
-			result <- panicTxt.String()
-			return
-		}
-
-		// Read into the next portion of our buffer
-		cursorEnd := cursor + int(math.Min(1024, float64(len(buf)-cursor)))
-		n, err := r.Read(buf[cursor:cursorEnd])
-		if n <= 0 {
-			if err == nil {
-				continue
-			} else if err == io.EOF {
-				result <- string(readPanicBytes())
 				return
 			}
-
-			// TODO(mitchellh): handle errors?
 		}
 
-		cursor += n
-		if cursor > len(buf) {
-			panic("cursor past the end of the buffer")
+		if panicTimer != nil {
+			// We're tracking what we think is a panic right now.
+			// If the timer ended, then it is not a panic.
+			isPanic := true
+			select {
+			case <-panicTimer:
+				isPanic = false
+			default:
+			}
+
+			// No matter what, buffer the text some more.
+			panicBuf.Write(buf[0:n])
+
+			if !isPanic {
+				// It isn't a panic, stop tracking. Clean-up will happen
+				// on the next iteration.
+				panicTimer = nil
+			}
+
+			continue
 		}
 
-		if cursor == len(buf) {
-			// Wrap around our buffer if we reached the end
-			cursor = 0
+		flushIdx := n
+		idx := bytes.Index(buf[0:n], panicHeader)
+		if idx >= 0 {
+			flushIdx = idx
 		}
+
+		// Flush to stderr what isn't a panic
+		os.Stderr.Write(buf[0:flushIdx])
+
+		if idx < 0 {
+			// Not a panic so just continue along
+			continue
+		}
+
+		// We have a panic header. Write we assume is a panic os far.
+		panicBuf.Write(buf[idx:n])
+		panicTimer = time.After(300 * time.Millisecond)
 	}
-}
-
-// verifyPanic takes a slice of bytes guaranteed to be at least 512 bytes
-// and uses that to verify if it is tracking a panic or not.
-func verifyPanic(p []byte) bool {
-	return bytes.Index(p, []byte("goroutine ")) != -1
 }

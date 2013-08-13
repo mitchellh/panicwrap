@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"time"
 	"os/exec"
 	"os/signal"
 	"strings"
@@ -90,6 +91,10 @@ func TestHelperProcess(*testing.T) {
 				fmt.Fprint(os.Stderr, "foobarbaz")
 			}
 
+			// Sleep so that it dumps the previous data
+			//time.Sleep(1 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
+
 			// Make a real panic
 			panic("I AM REAL!")
 		}
@@ -141,7 +146,7 @@ func TestPanicWrap_Output(t *testing.T) {
 	}
 }
 
-func TestPanicWrap_Wrap(t *testing.T) {
+func TestPanicWrap_Panic(t *testing.T) {
 	stdout := new(bytes.Buffer)
 
 	p := helperProcess("panic")
@@ -155,7 +160,7 @@ func TestPanicWrap_Wrap(t *testing.T) {
 	}
 }
 
-func TestPanicWrap_WrapLong(t *testing.T) {
+func TestPanicWrap_PanicLong(t *testing.T) {
 	stdout := new(bytes.Buffer)
 
 	p := helperProcess("panic-long")
