@@ -6,15 +6,16 @@ user-defined handler function. Stdout, stderr, stdin, signals, and exit
 codes continue to work as normal, making the existence of panicwrap mostly
 invisble to the end user until a panic actually occurs.
 
-While globally catching panics within a Go application is not supposed to be
-done, since a panic is truly a bug in the program meant to crash the system,
-it is often useful to have a way to know when these panics occur. panicwrap
-allows you to do something with these panics, such as writing them to a file,
-so that you can track when panics occur.
+Since a panic is truly a bug in the program meant to crash the runtime,
+globally catching panics within Go applications is not supposed to be possible.
+Despite this, it is often useful to have a way to know when panics occur.
+panicwrap allows you to do something with these panics, such as writing them
+to a file, so that you can track when panics occur.
 
-Because it would be sad to panic while capturing a panic, it is recommended
-that the handler functions for panicwrap remain relatively simple and well
-tested. panicwrap itself contains many tests.
+panicwrap is ***not a panic recovery system***. Panics indicate serious
+problems with your application and _should_ crash the runtime. panicwrap
+is just meant as a way to monitor for panics. If you still thing this is
+the worst idea ever, read the section below on why.
 
 ## Features
 
@@ -27,7 +28,11 @@ tested. panicwrap itself contains many tests.
 ## Usage
 
 Using panicwrap is simple. It behaves a lot like `fork`, if you know
-how that works. Here is a basic example:
+how that works. A basic example is shown below.
+
+Because it would be sad to panic while capturing a panic, it is recommended
+that the handler functions for panicwrap remain relatively simple and well
+tested. panicwrap itself contains many tests.
 
 ```go
 package main
