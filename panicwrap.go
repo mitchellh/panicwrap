@@ -48,6 +48,10 @@ type WrapConfig struct {
 	// hide panics from the end user. This is not recommended because if
 	// your handler fails, the panic is effectively lost.
 	HidePanic bool
+
+	// The writer to send the stderr to. If this is nil, then it defaults
+	// to os.Stderr.
+	Writer io.Writer
 }
 
 // BasicWrap calls Wrap with the given handler function, using defaults
@@ -85,6 +89,10 @@ func Wrap(c *WrapConfig) (int, error) {
 		c.CookieValue = DEFAULT_COOKIE_VAL
 	}
 
+	if c.Writer == nil {
+		c.Writer = os.Stderr
+	}
+
 	// If the cookie key/value match our environment, then we are the
 	// child, so just exit now and tell the caller that we're the child
 	if os.Getenv(c.CookieKey) == c.CookieValue {
@@ -116,7 +124,7 @@ func Wrap(c *WrapConfig) (int, error) {
 	}()
 
 	// Start the goroutine that will watch stderr for any panics
-	go trackPanic(stderr_r, panicCh)
+	go trackPanic(stderr_r, c.Writer, panicCh)
 
 	// Build a subcommand to re-execute ourselves. We make sure to
 	// set the environmental variable to include our cookie. We also
@@ -165,7 +173,7 @@ func Wrap(c *WrapConfig) (int, error) {
 		panicTxt := <-panicCh
 		if panicTxt != "" {
 			if !c.HidePanic {
-				os.Stderr.Write([]byte(panicTxt))
+				c.Writer.Write([]byte(panicTxt))
 			}
 
 			c.Handler(panicTxt)
@@ -180,7 +188,7 @@ func Wrap(c *WrapConfig) (int, error) {
 // trackPanic monitors the given reader for a panic. If a panic is detected,
 // it is outputted on the result channel. This will close the channel once
 // it is complete.
-func trackPanic(r io.Reader, result chan<- string) {
+func trackPanic(r io.Reader, w io.Writer, result chan<- string) {
 	defer close(result)
 
 	var panicTimer <-chan time.Time
@@ -198,7 +206,7 @@ func trackPanic(r io.Reader, result chan<- string) {
 			// look for another panic along the way.
 
 			// First, remove the previous panic header so we don't loop
-			os.Stderr.Write(panicBuf.Next(len(panicHeader)))
+			w.Write(panicBuf.Next(len(panicHeader)))
 
 			// Next, assume that this is our new buffer to inspect
 			n = panicBuf.Len()
@@ -249,7 +257,7 @@ func trackPanic(r io.Reader, result chan<- string) {
 		}
 
 		// Flush to stderr what isn't a panic
-		os.Stderr.Write(buf[0:flushIdx])
+		w.Write(buf[0:flushIdx])
 
 		if idx < 0 {
 			// Not a panic so just continue along
