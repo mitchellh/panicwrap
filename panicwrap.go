@@ -49,6 +49,11 @@ type WrapConfig struct {
 	// your handler fails, the panic is effectively lost.
 	HidePanic bool
 
+	// The amount of time that a process must exit within after detecting
+	// a panic header for panicwrap to assume it is a panic. Defaults to
+	// 300 milliseconds.
+	DetectDuration time.Duration
+
 	// The writer to send the stderr to. If this is nil, then it defaults
 	// to os.Stderr.
 	Writer io.Writer
@@ -89,6 +94,10 @@ func Wrap(c *WrapConfig) (int, error) {
 		c.CookieValue = DEFAULT_COOKIE_VAL
 	}
 
+	if c.DetectDuration == 0 {
+		c.DetectDuration = 300 * time.Millisecond
+	}
+
 	if c.Writer == nil {
 		c.Writer = os.Stderr
 	}
@@ -124,7 +133,7 @@ func Wrap(c *WrapConfig) (int, error) {
 	}()
 
 	// Start the goroutine that will watch stderr for any panics
-	go trackPanic(stderr_r, c.Writer, panicCh)
+	go trackPanic(stderr_r, c.Writer, c.DetectDuration, panicCh)
 
 	// Build a subcommand to re-execute ourselves. We make sure to
 	// set the environmental variable to include our cookie. We also
@@ -188,7 +197,7 @@ func Wrap(c *WrapConfig) (int, error) {
 // trackPanic monitors the given reader for a panic. If a panic is detected,
 // it is outputted on the result channel. This will close the channel once
 // it is complete.
-func trackPanic(r io.Reader, w io.Writer, result chan<- string) {
+func trackPanic(r io.Reader, w io.Writer, dur time.Duration, result chan<- string) {
 	defer close(result)
 
 	var panicTimer <-chan time.Time
@@ -266,6 +275,6 @@ func trackPanic(r io.Reader, w io.Writer, result chan<- string) {
 
 		// We have a panic header. Write we assume is a panic os far.
 		panicBuf.Write(buf[idx:n])
-		panicTimer = time.After(300 * time.Millisecond)
+		panicTimer = time.After(dur)
 	}
 }
