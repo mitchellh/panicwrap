@@ -14,7 +14,7 @@ to a file, so that you can track when panics occur.
 
 panicwrap is ***not a panic recovery system***. Panics indicate serious
 problems with your application and _should_ crash the runtime. panicwrap
-is just meant as a way to monitor for panics. If you still thing this is
+is just meant as a way to monitor for panics. If you still think this is
 the worst idea ever, read the section below on why.
 
 ## Features
