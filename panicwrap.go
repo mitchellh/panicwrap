@@ -86,14 +86,6 @@ func Wrap(c *WrapConfig) (int, error) {
 		return -1, errors.New("Handler must be set")
 	}
 
-	if c.CookieKey == "" {
-		c.CookieKey = DEFAULT_COOKIE_KEY
-	}
-
-	if c.CookieValue == "" {
-		c.CookieValue = DEFAULT_COOKIE_VAL
-	}
-
 	if c.DetectDuration == 0 {
 		c.DetectDuration = 300 * time.Millisecond
 	}
@@ -102,9 +94,8 @@ func Wrap(c *WrapConfig) (int, error) {
 		c.Writer = os.Stderr
 	}
 
-	// If the cookie key/value match our environment, then we are the
-	// child, so just exit now and tell the caller that we're the child
-	if os.Getenv(c.CookieKey) == c.CookieValue {
+	// If we're already wrapped, exit out.
+	if Wrapped(c) {
 		return -1, nil
 	}
 
@@ -192,6 +183,25 @@ func Wrap(c *WrapConfig) (int, error) {
 	}
 
 	return 0, nil
+}
+
+// Wrapped checks if we're already wrapped according to the configuration
+// given.
+//
+// Wrapped is very cheap and can be used early to short-circuit some pre-wrap
+// logic your application may have.
+func Wrapped(c *WrapConfig) bool {
+	if c.CookieKey == "" {
+		c.CookieKey = DEFAULT_COOKIE_KEY
+	}
+
+	if c.CookieValue == "" {
+		c.CookieValue = DEFAULT_COOKIE_VAL
+	}
+
+	// If the cookie key/value match our environment, then we are the
+	// child, so just exit now and tell the caller that we're the child
+	return os.Getenv(c.CookieKey) == c.CookieValue
 }
 
 // trackPanic monitors the given reader for a panic. If a panic is detected,
