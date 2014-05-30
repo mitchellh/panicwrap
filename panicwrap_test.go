@@ -132,7 +132,7 @@ func TestHelperProcess(*testing.T) {
 			child = true
 		}
 		config := &WrapConfig{
-			Handler:   panicHandler,
+			Handler: panicHandler,
 		}
 
 		exitStatus, err := Wrap(config)
