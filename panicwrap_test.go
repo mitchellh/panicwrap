@@ -56,6 +56,22 @@ func TestHelperProcess(*testing.T) {
 
 	cmd, args := args[0], args[1:]
 	switch cmd {
+	case "no-panic-ordered-output":
+		exitStatus, err := BasicWrap(panicHandler)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
+			os.Exit(1)
+		}
+
+		if exitStatus < 0 {
+			for i := 0; i < 1000; i++ {
+				os.Stdout.Write([]byte("a"))
+				os.Stderr.Write([]byte("b"))
+			}
+			os.Exit(0)
+		}
+
+		os.Exit(exitStatus)
 	case "no-panic-output":
 		fmt.Fprint(os.Stdout, "i am output")
 		fmt.Fprint(os.Stderr, "stderr out")
@@ -177,6 +193,32 @@ func TestPanicWrap_Output(t *testing.T) {
 		t.Fatalf("didn't forward: %#v", stderr.String())
 	}
 }
+
+/*
+TODO(mitchellh): This property would be nice to gain.
+func TestPanicWrap_Output_Order(t *testing.T) {
+	output := new(bytes.Buffer)
+
+	p := helperProcess("no-panic-ordered-output")
+	p.Stdout = output
+	p.Stderr = output
+	if err := p.Run(); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	expectedBuf := new(bytes.Buffer)
+	for i := 0; i < 1000; i++ {
+		expectedBuf.WriteString("ab")
+	}
+
+	actual := strings.TrimSpace(output.String())
+	expected := strings.TrimSpace(expectedBuf.String())
+
+	if actual != expected {
+		t.Fatalf("bad: %#v", actual)
+	}
+}
+*/
 
 func TestPanicWrap_panicHide(t *testing.T) {
 	stdout := new(bytes.Buffer)
