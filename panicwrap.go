@@ -57,6 +57,10 @@ type WrapConfig struct {
 	// The writer to send the stderr to. If this is nil, then it defaults
 	// to os.Stderr.
 	Writer io.Writer
+
+	// The writer to send stdout to. If this is nil, then it defaults to
+	// os.Stdout.
+	Stdout io.Writer
 }
 
 // BasicWrap calls Wrap with the given handler function, using defaults
@@ -126,6 +130,12 @@ func Wrap(c *WrapConfig) (int, error) {
 	// Start the goroutine that will watch stderr for any panics
 	go trackPanic(stderr_r, c.Writer, c.DetectDuration, panicCh)
 
+	// Create the writer for stdout that we're going to use
+	var stdout_w io.Writer = os.Stdout
+	if c.Stdout != nil {
+		stdout_w = c.Stdout
+	}
+
 	// Build a subcommand to re-execute ourselves. We make sure to
 	// set the environmental variable to include our cookie. We also
 	// set stdin/stdout to match the config. Finally, we pipe stderr
@@ -133,7 +143,7 @@ func Wrap(c *WrapConfig) (int, error) {
 	cmd := exec.Command(exePath, os.Args[1:]...)
 	cmd.Env = append(os.Environ(), c.CookieKey+"="+c.CookieValue)
 	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
+	cmd.Stdout = stdout_w
 	cmd.Stderr = stderr_w
 	if err := cmd.Start(); err != nil {
 		return 1, err
