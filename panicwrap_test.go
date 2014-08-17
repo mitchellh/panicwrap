@@ -231,7 +231,7 @@ func TestPanicWrap_panicHide(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !strings.Contains(stdout.String(), "wrapped: 1006") {
+	if !strings.Contains(stdout.String(), "wrapped:") {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 
@@ -251,7 +251,7 @@ func TestPanicWrap_panicShow(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !strings.Contains(stdout.String(), "wrapped: 1006") {
+	if !strings.Contains(stdout.String(), "wrapped:") {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 
@@ -270,7 +270,7 @@ func TestPanicWrap_panicLong(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !strings.Contains(stdout.String(), "wrapped: 1017") {
+	if !strings.Contains(stdout.String(), "wrapped:") {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 }
