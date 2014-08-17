@@ -168,6 +168,28 @@ func TestHelperProcess(*testing.T) {
 			fmt.Printf("%v", Wrapped(config))
 		}
 		os.Exit(exitStatus)
+	case "panic-monitor":
+
+		config := &WrapConfig{
+			Handler: panicHandler,
+			HidePanic: true,
+			Monitor: true,
+		}
+
+		exitStatus, err := Wrap(config)
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
+			os.Exit(1)
+		}
+
+		if exitStatus != -1 {
+			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
+			os.Exit(1)
+		}
+
+		panic("uh oh")
+
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %q\n", cmd)
 		os.Exit(2)
@@ -289,6 +311,22 @@ func TestPanicWrap_panicBoundary(t *testing.T) {
 	}
 
 	if !strings.Contains(stdout.String(), "wrapped: 1015") {
+		t.Fatalf("didn't wrap: %#v", stdout.String())
+	}
+}
+
+func TestPanicWrap_monitor(t *testing.T) {
+
+	stdout := new(bytes.Buffer)
+
+	p := helperProcess("panic-monitor")
+	p.Stdout = stdout
+	//p.Stderr = new(bytes.Buffer)
+	if err := p.Run(); err == nil || err.Error() != "exit status 2" {
+		t.Fatalf("err: %s", err)
+	}
+
+	if !strings.Contains(stdout.String(), "wrapped:") {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 }
