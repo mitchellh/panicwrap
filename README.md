@@ -98,9 +98,7 @@ a way to do this.
 
 For backend applications, it is easier to detect crashes (since the application exits) 
 and having an idea as to why the crash occures is equally important; 
-particularlly on a production server. One case where attempting to capture why 
-the go process crashed is nearly impossible at the time of this writing is due to 
-an OUTOFMEMORY panic. 
+particularlly on a production server. 
 
 At [HashiCorp](http://www.hashicorp.com),
 we use panicwrap to log panics to timestamped files with some additional
