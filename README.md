@@ -82,20 +82,29 @@ process to handle them.
 
 ## WHY?! Panics should CRASH!
 
-Yes, panics _should_ crash. They are 100% always indicative of bugs.
-However, in some cases, such as user-facing programs (programs like
+Yes, panics _should_ crash. They are 100% always indicative of bugs and having
+information on a production server or application as to what caused the panic is critical.
+
+### User Facing
+
+In user-facing programs (programs like
 [Packer](http://github.com/mitchellh/packer) or
 [Docker](http://github.com/dotcloud/docker)), it is up to the user to
 report such panics. This is unreliable, at best, and it would be better if the
 program could have a way to automatically report panics. panicwrap provides
 a way to do this.
 
-For backend applications, it is easier to detect crashes (since the application
-exits). However, it is still nice sometimes to more intelligently log
-panics in some way. For example, at [HashiCorp](http://www.hashicorp.com),
+### Server
+
+For backend applications, it is easier to detect crashes (since the application exits) 
+and having an idea as to why the crash occures is equally important; 
+particularlly on a production server. One case where attempting to capture why 
+the go process crashed is nearly impossible at the time of this writing is due to 
+an OUTOFMEMORY panic. 
+
+At [HashiCorp](http://www.hashicorp.com),
 we use panicwrap to log panics to timestamped files with some additional
 data (configuration settings at the time, environmental variables, etc.)
 
 The goal of panicwrap is _not_ to hide panics. It is instead to provide
-a clean mechanism for handling them before bubbling the up to the user
-and ultimately crashing.
+a clean mechanism for capturing them and ultimately crashing.
