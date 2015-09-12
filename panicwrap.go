@@ -49,6 +49,12 @@ type WrapConfig struct {
 	// your handler fails, the panic is effectively lost.
 	HidePanic bool
 
+	// If true, panicwrap will boot a monitor sub-process and let the parent
+	// run the app. This mode is useful for processes run under supervisors
+	// like runit as signals get sent to the correct codebase. This is not
+	// supported when GOOS=windows, and ignores c.Stderr and c.Stdout.
+	Monitor bool
+
 	// The amount of time that a process must exit within after detecting
 	// a panic header for panicwrap to assume it is a panic. Defaults to
 	// 300 milliseconds.
@@ -97,6 +103,15 @@ func Wrap(c *WrapConfig) (int, error) {
 	if c.Writer == nil {
 		c.Writer = os.Stderr
 	}
+
+	if c.Monitor {
+		return monitor(c)
+	} else {
+		return wrap(c)
+	}
+}
+
+func wrap(c *WrapConfig) (int, error) {
 
 	// If we're already wrapped, exit out.
 	if Wrapped(c) {
