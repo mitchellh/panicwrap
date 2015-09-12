@@ -1,10 +1,10 @@
 # panicwrap
 
 panicwrap is a Go library that re-executes a Go binary and monitors stderr
-output from the binary for a panic. When it find a panic, it executes a
+output from the binary for a panic. When it finds a panic, it executes a
 user-defined handler function. Stdout, stderr, stdin, signals, and exit
 codes continue to work as normal, making the existence of panicwrap mostly
-invisble to the end user until a panic actually occurs.
+invisible to the end user until a panic actually occurs.
 
 Since a panic is truly a bug in the program meant to crash the runtime,
 globally catching panics within Go applications is not supposed to be possible.
