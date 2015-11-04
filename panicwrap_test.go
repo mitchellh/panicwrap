@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -231,7 +232,8 @@ func TestPanicWrap_panicHide(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !strings.Contains(stdout.String(), "wrapped: 1006") {
+	r, _ := regexp.Compile(`wrapped: \d\d\d\d`)
+	if r.FindString(stdout.String()) == "" {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 
@@ -251,7 +253,8 @@ func TestPanicWrap_panicShow(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !strings.Contains(stdout.String(), "wrapped: 1006") {
+	r, _ := regexp.Compile(`wrapped: \d\d\d\d`)
+	if r.FindString(stdout.String()) == "" {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 
@@ -270,7 +273,8 @@ func TestPanicWrap_panicLong(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !strings.Contains(stdout.String(), "wrapped: 1017") {
+	r, _ := regexp.Compile(`wrapped: \d\d\d\d`)
+	if r.FindString(stdout.String()) == "" {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 }
@@ -288,7 +292,8 @@ func TestPanicWrap_panicBoundary(t *testing.T) {
 		t.Fatalf("err: %s", err)
 	}
 
-	if !strings.Contains(stdout.String(), "wrapped: 1015") {
+	r, _ := regexp.Compile(`wrapped: \d\d\d\d`)
+	if r.FindString(stdout.String()) == "" {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
 	}
 }
