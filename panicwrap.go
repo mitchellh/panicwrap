@@ -12,13 +12,14 @@ package panicwrap
 import (
 	"bytes"
 	"errors"
-	"github.com/kardianos/osext"
 	"io"
 	"os"
 	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/kardianos/osext"
 )
 
 const (
@@ -61,6 +62,10 @@ type WrapConfig struct {
 	// The writer to send stdout to. If this is nil, then it defaults to
 	// os.Stdout.
 	Stdout io.Writer
+
+	// Catch and igore these signals in the parent process, let the child
+	// handle them gracefully.
+	IgnoreSignals []os.Signal
 }
 
 // BasicWrap calls Wrap with the given handler function, using defaults
@@ -152,7 +157,10 @@ func Wrap(c *WrapConfig) (int, error) {
 	// Listen to signals and capture them forever. We allow the child
 	// process to handle them in some way.
 	sigCh := make(chan os.Signal)
-	signal.Notify(sigCh, os.Interrupt)
+	if len(c.IgnoreSignals) == 0 {
+		c.IgnoreSignals = []os.Signal{os.Interrupt}
+	}
+	signal.Notify(sigCh, c.IgnoreSignals...)
 	go func() {
 		defer signal.Stop(sigCh)
 		for {
