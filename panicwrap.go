@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -209,7 +210,17 @@ func Wrap(c *WrapConfig) (int, error) {
 //
 // Wrapped is very cheap and can be used early to short-circuit some pre-wrap
 // logic your application may have.
+//
+// If the given configuration is nil, then this will return a cached
+// value of Wrapped. This is useful because Wrapped is usually called early
+// to verify a process hasn't been wrapped before wrapping. After this,
+// the value of Wrapped hardly changes and is process-global, so other
+// libraries can check with Wrapped(nil).
 func Wrapped(c *WrapConfig) bool {
+	if c == nil {
+		return wrapCache.Load().(bool)
+	}
+
 	if c.CookieKey == "" {
 		c.CookieKey = DEFAULT_COOKIE_KEY
 	}
@@ -220,7 +231,16 @@ func Wrapped(c *WrapConfig) bool {
 
 	// If the cookie key/value match our environment, then we are the
 	// child, so just exit now and tell the caller that we're the child
-	return os.Getenv(c.CookieKey) == c.CookieValue
+	result := os.Getenv(c.CookieKey) == c.CookieValue
+	wrapCache.Store(result)
+	return result
+}
+
+// wrapCache is the cached value for Wrapped when called with nil
+var wrapCache atomic.Value
+
+func init() {
+	wrapCache.Store(false)
 }
 
 // trackPanic monitors the given reader for a panic. If a panic is detected,
