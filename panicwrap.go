@@ -175,7 +175,7 @@ func Wrap(c *WrapConfig) (int, error) {
 	sigCh := make(chan os.Signal)
 	fwdSigCh := make(chan os.Signal)
 	if len(c.IgnoreSignals) == 0 {
-		c.IgnoreSignals = []os.Signal{os.Interrupt}
+		c.IgnoreSignals = WrapSignals
 	}
 	signal.Notify(sigCh, c.IgnoreSignals...)
 	signal.Notify(fwdSigCh, c.ForwardSignals...)
