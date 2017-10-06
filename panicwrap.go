@@ -172,8 +172,8 @@ func Wrap(c *WrapConfig) (int, error) {
 
 	// Listen to signals and capture them forever. We allow the child
 	// process to handle them in some way.
-	sigCh := make(chan os.Signal)
-	fwdSigCh := make(chan os.Signal)
+	sigCh := make(chan os.Signal, 1)
+	fwdSigCh := make(chan os.Signal, 1)
 	if len(c.IgnoreSignals) == 0 {
 		c.IgnoreSignals = []os.Signal{os.Interrupt}
 	}
