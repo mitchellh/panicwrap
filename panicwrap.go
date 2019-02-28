@@ -20,8 +20,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"github.com/kardianos/osext"
 )
 
 const (
@@ -118,7 +116,7 @@ func Wrap(c *WrapConfig) (int, error) {
 	}
 
 	// Get the path to our current executable
-	exePath, err := osext.Executable()
+	exePath, err := os.Executable()
 	if err != nil {
 		return -1, err
 	}
