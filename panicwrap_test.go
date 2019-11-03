@@ -171,6 +171,31 @@ func TestHelperProcess(*testing.T) {
 			fmt.Printf("%v", Wrapped(nil))
 		}
 		os.Exit(exitStatus)
+	case "recursive":
+		config := &WrapConfig{
+			Handler: panicHandler,
+		}
+
+		if len(args) > 0 && args[0] == "child" {
+			fmt.Printf("%v", Wrapped(config))
+			os.Exit(0)
+		}
+
+		exitCode, err := Wrap(config)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
+			os.Exit(1)
+		}
+
+		if Wrapped(nil) {
+			p := helperProcess("recursive", "child")
+			if err := p.Run(); err != nil {
+				fmt.Fprintf(os.Stderr, "wrap error: %s", err)
+				os.Exit(1)
+			}
+			os.Exit(0)
+		}
+		os.Exit(exitCode)
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %q\n", cmd)
 		os.Exit(2)
@@ -293,6 +318,20 @@ func TestPanicWrap_panicBoundary(t *testing.T) {
 
 	if wrapRe.FindString(stdout.String()) == "" {
 		t.Fatalf("didn't wrap: %#v", stdout.String())
+	}
+}
+
+func TestPanicWrap_recursive(t *testing.T) {
+	stdout := new(bytes.Buffer)
+
+	p := helperProcess("recursive")
+	p.Stdout = stdout
+	if err := p.Run(); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	if !strings.Contains(stdout.String(), "false") {
+		t.Fatalf("Wrapped false positive: %#v", stdout.String())
 	}
 }
 
