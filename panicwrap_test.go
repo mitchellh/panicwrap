@@ -162,13 +162,13 @@ func TestHelperProcess(*testing.T) {
 
 		if exitStatus < 0 {
 			if child {
-				fmt.Printf("%v", Wrapped(config))
+				fmt.Printf("%v", Wrapped(nil))
 			}
 			os.Exit(0)
 		}
 
 		if !child {
-			fmt.Printf("%v", Wrapped(config))
+			fmt.Printf("%v", Wrapped(nil))
 		}
 		os.Exit(exitStatus)
 	default:
