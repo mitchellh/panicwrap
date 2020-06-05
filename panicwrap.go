@@ -63,7 +63,7 @@ type WrapConfig struct {
 	// os.Stdout.
 	Stdout io.Writer
 
-	// Catch and igore these signals in the parent process, let the child
+	// Catch and ignore these signals in the parent process, let the child
 	// handle them gracefully.
 	IgnoreSignals []os.Signal
 
