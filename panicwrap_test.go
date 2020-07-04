@@ -122,6 +122,28 @@ func TestHelperProcess(*testing.T) {
 		}
 
 		os.Exit(exitStatus)
+	case "fatal":
+		exitStatus, err := BasicWrap(panicHandler)
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
+			os.Exit(1)
+		}
+
+		if exitStatus < 0 {
+			// force a concurrent map error
+			badmap := make(map[int]int)
+			go func() {
+				for {
+					badmap[0] = 0
+				}
+			}()
+			for {
+				badmap[0] = 0
+			}
+		}
+
+		os.Exit(exitStatus)
 	case "panic":
 		hidePanic := false
 		if args[0] == "hide" {
@@ -294,6 +316,22 @@ func TestPanicWrap_panicLong(t *testing.T) {
 	p := helperProcess("panic-long")
 	p.Stdout = stdout
 	p.Stderr = new(bytes.Buffer)
+	if err := p.Run(); err != nil {
+		t.Fatalf("err: %s", err)
+	}
+
+	if wrapRe.FindString(stdout.String()) == "" {
+		t.Fatalf("didn't wrap: %#v", stdout.String())
+	}
+}
+
+func TestPanicWrap_fatal(t *testing.T) {
+	stdout := new(bytes.Buffer)
+	stderr := new(bytes.Buffer)
+
+	p := helperProcess("fatal")
+	p.Stdout = stdout
+	p.Stderr = stderr
 	if err := p.Run(); err != nil {
 		t.Fatalf("err: %s", err)
 	}

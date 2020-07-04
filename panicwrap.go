@@ -280,7 +280,7 @@ func trackPanic(r io.Reader, w io.Writer, dur time.Duration, result chan<- strin
 	panicBuf := new(bytes.Buffer)
 	panicHeaders := [][]byte{
 		[]byte("panic:"),
-		[]byte("fatal error: fault"),
+		[]byte("fatal error:"),
 	}
 	panicType := -1
 
