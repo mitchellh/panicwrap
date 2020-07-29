@@ -78,7 +78,7 @@ type WrapConfig struct {
 // BasicWrap calls Wrap with the given handler function, using defaults
 // for everything else. See Wrap and WrapConfig for more information on
 // functionality and return values.
-func BasicWrap(f HandlerFunc) (int, error) {
+func BasicWrap(f HandlerFunc) (done bool, statusCode int, err error) {
 	return Wrap(&WrapConfig{
 		Handler: f,
 	})
@@ -87,7 +87,7 @@ func BasicWrap(f HandlerFunc) (int, error) {
 // Wrap wraps the current executable in a handler to catch panics. It
 // returns an error if there was an error during the wrapping process.
 // If the error is nil, then the int result indicates the exit status of the
-// child process. If the exit status is -1, then this is the child process,
+// child process. If the done flag is false, then this is the child process,
 // and execution should continue as normal. Otherwise, this is the parent
 // process and the child successfully ran already, and you should exit the
 // process with the returned exit status.
@@ -97,9 +97,9 @@ func BasicWrap(f HandlerFunc) (int, error) {
 //
 // Once this is called, the given WrapConfig shouldn't be modified or used
 // any further.
-func Wrap(c *WrapConfig) (int, error) {
+func Wrap(c *WrapConfig) (done bool, statusCode int, err error) {
 	if c.Handler == nil {
-		return -1, errors.New("Handler must be set")
+		return false, -1, errors.New("Handler must be set")
 	}
 
 	if c.DetectDuration == 0 {
@@ -112,13 +112,13 @@ func Wrap(c *WrapConfig) (int, error) {
 
 	// If we're already wrapped, exit out.
 	if Wrapped(c) {
-		return -1, nil
+		return false, -1, nil
 	}
 
 	// Get the path to our current executable
 	exePath, err := os.Executable()
 	if err != nil {
-		return -1, err
+		return false, -1, err
 	}
 
 	// Pipe the stderr so we can read all the data as we look for panics
@@ -165,7 +165,7 @@ func Wrap(c *WrapConfig) (int, error) {
 	}
 
 	if err := cmd.Start(); err != nil {
-		return 1, err
+		return true, 1, err
 	}
 
 	// Listen to signals and capture them forever. We allow the child
@@ -197,7 +197,7 @@ func Wrap(c *WrapConfig) (int, error) {
 		exitErr, ok := err.(*exec.ExitError)
 		if !ok {
 			// This is some other kind of subprocessing error.
-			return 1, err
+			return true, 1, err
 		}
 
 		exitStatus := 1
@@ -218,10 +218,10 @@ func Wrap(c *WrapConfig) (int, error) {
 			c.Handler(panicTxt)
 		}
 
-		return exitStatus, nil
+		return true, exitStatus, nil
 	}
 
-	return 0, nil
+	return true, 0, nil
 }
 
 // Wrapped checks if we're already wrapped according to the configuration

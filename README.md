@@ -44,20 +44,20 @@ import (
 )
 
 func main() {
-	exitStatus, err := panicwrap.BasicWrap(panicHandler)
+	done, exitStatus, err := panicwrap.BasicWrap(panicHandler)
 	if err != nil {
 		// Something went wrong setting up the panic wrapper. Unlikely,
 		// but possible.
 		panic(err)
 	}
 
-	// If exitStatus >= 0, then we're the parent process and the panicwrap
+	// If done, then we're the parent process and the panicwrap
 	// re-executed ourselves and completed. Just exit with the proper status.
-	if exitStatus >= 0 {
+	if done {
 		os.Exit(exitStatus)
 	}
 
-	// Otherwise, exitStatus < 0 means we're the child. Continue executing as
+	// Otherwise, !done means we're the child. Continue executing as
 	// normal...
 
 	// Let's say we panic

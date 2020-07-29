@@ -60,13 +60,13 @@ func TestHelperProcess(*testing.T) {
 	cmd, args := args[0], args[1:]
 	switch cmd {
 	case "no-panic-ordered-output":
-		exitStatus, err := BasicWrap(panicHandler)
+		done, exitStatus, err := BasicWrap(panicHandler)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
 			os.Exit(1)
 		}
 
-		if exitStatus < 0 {
+		if !done {
 			for i := 0; i < 1000; i++ {
 				os.Stdout.Write([]byte("a"))
 				os.Stderr.Write([]byte("b"))
@@ -80,14 +80,14 @@ func TestHelperProcess(*testing.T) {
 		fmt.Fprint(os.Stderr, "stderr out")
 		os.Exit(0)
 	case "panic-boundary":
-		exitStatus, err := BasicWrap(panicHandler)
+		done, exitStatus, err := BasicWrap(panicHandler)
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
 			os.Exit(1)
 		}
 
-		if exitStatus < 0 {
+		if !done {
 			// Simulate a panic but on two boundaries...
 			fmt.Fprint(os.Stderr, "pan")
 			os.Stderr.Sync()
@@ -98,14 +98,14 @@ func TestHelperProcess(*testing.T) {
 
 		os.Exit(exitStatus)
 	case "panic-long":
-		exitStatus, err := BasicWrap(panicHandler)
+		done, exitStatus, err := BasicWrap(panicHandler)
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
 			os.Exit(1)
 		}
 
-		if exitStatus < 0 {
+		if !done {
 			// Make a fake panic by faking the header and adding a
 			// bunch of garbage.
 			fmt.Fprint(os.Stderr, "panic: foo\n\n")
@@ -133,14 +133,14 @@ func TestHelperProcess(*testing.T) {
 			HidePanic: hidePanic,
 		}
 
-		exitStatus, err := Wrap(config)
+		done, exitStatus, err := Wrap(config)
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
 			os.Exit(1)
 		}
 
-		if exitStatus < 0 {
+		if !done {
 			panic("uh oh")
 		}
 
@@ -154,13 +154,13 @@ func TestHelperProcess(*testing.T) {
 			Handler: panicHandler,
 		}
 
-		exitStatus, err := Wrap(config)
+		done, exitStatus, err := Wrap(config)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
 			os.Exit(1)
 		}
 
-		if exitStatus < 0 {
+		if !done {
 			if child {
 				fmt.Printf("%v", Wrapped(nil))
 			}
@@ -181,7 +181,7 @@ func TestHelperProcess(*testing.T) {
 			os.Exit(0)
 		}
 
-		exitCode, err := Wrap(config)
+		_, exitCode, err := Wrap(config)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "wrap error: %s", err)
 			os.Exit(1)
